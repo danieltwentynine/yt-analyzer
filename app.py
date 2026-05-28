@@ -405,7 +405,14 @@ class ProgressFrame(tk.Frame):
         sb.pack(side="right", fill="y")
         self._log.pack(side="left", fill="both", expand=True)
 
-        _btn(self, "Cancelar", app.cancel, bg=RED).pack(pady=(16, 24))
+        btn_row = tk.Frame(self, bg=BG)
+        btn_row.pack(pady=(16, 24))
+        _btn(btn_row, "Cancelar", app.cancel, bg=RED).pack(side="left", padx=8)
+        _btn(btn_row, "← Menu", self._back, bg=BG2).pack(side="left", padx=8)
+
+    def _back(self):
+        self._app.cancel()
+        self._app.show("home")
 
     def reset(self):
         self._total = 0
