@@ -32,11 +32,13 @@ FONT_MONO  = ("Consolas", 10)
 
 
 def _btn(parent, text, command, bg=BLUE, fg=FG, **kw):
+    kw.setdefault("padx", 16)
+    kw.setdefault("pady", 8)
     return tk.Button(
         parent, text=text, command=command,
         bg=bg, fg=fg, activebackground=BLUE_HOV, activeforeground=fg,
         relief="flat", cursor="hand2", font=FONT,
-        padx=16, pady=8, **kw,
+        **kw,
     )
 
 
