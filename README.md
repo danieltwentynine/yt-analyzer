@@ -1,6 +1,37 @@
-# YouTube Playlist Analyzer
+# YouTube Analyzer
 
-Baixa automaticamente vídeos de uma playlist do YouTube, transcreve com Whisper e gera **resumo**, **análise crítica** e **mapa mental em JSON** para cada vídeo — tudo rodando localmente via Ollama, sem depender de APIs externas pagas.
+Baixa automaticamente vídeos do YouTube, transcreve com Whisper e gera **resumo**, **análise crítica** e **mapa mental em JSON** para cada vídeo — tudo rodando localmente via Ollama, sem depender de APIs externas pagas.
+
+Disponível como **interface gráfica** (`app.py`) e como **script de linha de comando** (`pipeline.py`).
+
+---
+
+## Interface gráfica (recomendado)
+
+```bash
+python app.py
+```
+
+A interface guia você por quatro telas:
+
+| Tela | Descrição |
+|---|---|
+| **Menu inicial** | Escolha o modo: Vídeo único, Playlist, Canal inteiro ou Arquivo .txt |
+| **Configuração** | Cole a URL (ou selecione o arquivo), escolha o modelo Ollama e inicie |
+| **Progresso** | Barra de progresso geral + log em tempo real de cada etapa |
+| **Resultados** | Lista dos vídeos processados com botão "Abrir pasta" para cada um |
+
+> O `app.py` é o entry point principal e chama as funções do `pipeline.py` internamente.
+
+---
+
+## CLI (linha de comando)
+
+```bash
+python pipeline.py
+```
+
+Cole a URL quando solicitado. Útil para automação ou ambientes sem interface gráfica.
 
 ---
 
@@ -97,13 +128,21 @@ OLLAMA_MODEL=mistral
 
 Certifique-se de que o Ollama está rodando (`ollama serve` ou via app), então:
 
+**Interface gráfica:**
+```bash
+python app.py
+```
+
+**Linha de comando:**
 ```bash
 python pipeline.py
 ```
 
-Cole a URL da playlist quando solicitado, ex:
+Cole a URL quando solicitado. Exemplos de URLs suportadas:
 ```
-https://www.youtube.com/playlist?list=PLxxxxxxxxxxxx
+https://www.youtube.com/watch?v=xxxxxxxxxxx          # vídeo único
+https://www.youtube.com/playlist?list=PLxxxxxxxxxxxx # playlist
+https://www.youtube.com/@canal/videos                # canal inteiro
 ```
 
 ---

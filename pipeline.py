@@ -185,24 +185,24 @@ Responda APENAS com JSON válido. Sem texto antes ou depois. Sem backticks. Sem 
 
 Use exatamente este formato:
 {{
-  "title": "{title}",
-  "children": [
+    "title": "{title}",
+    "children": [
     {{
-      "title": "Tema Principal 1",
-      "children": [
+        "title": "Tema Principal 1",
+        "children": [
         {{
-          "title": "Subtópico 1.1",
-          "children": [
-            {{"title": "Detalhe 1.1.1", "children": []}}
-          ]
+            "title": "Subtópico 1.1",
+            "children": [
+                {{"title": "Detalhe 1.1.1", "children": []}}
+            ]
         }},
         {{
-          "title": "Subtópico 1.2",
-          "children": []
+            "title": "Subtópico 1.2",
+            "children": []
         }}
-      ]
+        ]
     }}
-  ]
+    ]
 }}
 
 Regras obrigatórias:
