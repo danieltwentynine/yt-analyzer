@@ -6,6 +6,7 @@ Baixa áudios, transcreve com Whisper e gera resumo, análise e mapa mental via 
 
 import os
 import json
+import shutil
 import time
 import re
 import subprocess
@@ -19,6 +20,28 @@ load_dotenv()
 OUTPUT_DIR = Path("output")
 WHISPER_MODEL = os.getenv("WHISPER_MODEL", "medium")  # tiny | base | small | medium | large
 WHISPER_LANGUAGE = os.getenv("WHISPER_LANGUAGE", "pt")
+
+
+def ensure_ffmpeg() -> bool:
+    """Add ffmpeg to PATH if missing. Returns True if ffmpeg is available after the check."""
+    if shutil.which("ffmpeg"):
+        return True
+    candidates = [
+        Path(r"C:\ffmpeg\bin"),
+        Path(r"C:\ffmpeg\ffmpeg-master-latest-win64-gpl\bin"),
+        Path(r"C:\Program Files\ffmpeg\bin"),
+        Path(r"C:\Program Files (x86)\ffmpeg\bin"),
+        Path.home() / "ffmpeg" / "bin",
+        Path.home() / "AppData" / "Local" / "ffmpeg" / "bin",
+    ]
+    for p in candidates:
+        if (p / "ffmpeg.exe").exists():
+            os.environ["PATH"] = str(p) + os.pathsep + os.environ.get("PATH", "")
+            print(f"ℹ️  ffmpeg encontrado em: {p}")
+            return True
+    print("⚠️  ffmpeg não encontrado. Instale o ffmpeg e adicione ao PATH.")
+    print("    Download: https://ffmpeg.org/download.html")
+    return False
 
 
 def call_llm(prompt: str) -> str:
@@ -262,6 +285,7 @@ def main():
     print("║      YouTube Playlist Analyzer — Claude      ║")
     print("╚══════════════════════════════════════════════╝\n")
 
+    ensure_ffmpeg()
     playlist_url = input("🔗 Cole a URL da playlist do YouTube: ").strip()
     OUTPUT_DIR.mkdir(exist_ok=True)
 

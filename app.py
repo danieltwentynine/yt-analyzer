@@ -145,6 +145,7 @@ class App(tk.Tk):
         sys.stdout = _QueueStream(self._q)
         try:
             os.environ["OLLAMA_MODEL"] = model
+            pipeline.ensure_ffmpeg()
             pipeline.OUTPUT_DIR.mkdir(exist_ok=True)
 
             # 1. Build video list
