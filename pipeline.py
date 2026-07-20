@@ -23,22 +23,9 @@ WHISPER_LANGUAGE = os.getenv("WHISPER_LANGUAGE", "pt")
 
 
 def ensure_ffmpeg() -> bool:
-    """Add ffmpeg to PATH if missing. Returns True if ffmpeg is available after the check."""
+    """Returns True if ffmpeg is on PATH, warns otherwise."""
     if shutil.which("ffmpeg"):
         return True
-    candidates = [
-        Path(r"C:\ffmpeg\bin"),
-        Path(r"C:\ffmpeg\ffmpeg-master-latest-win64-gpl\bin"),
-        Path(r"C:\Program Files\ffmpeg\bin"),
-        Path(r"C:\Program Files (x86)\ffmpeg\bin"),
-        Path.home() / "ffmpeg" / "bin",
-        Path.home() / "AppData" / "Local" / "ffmpeg" / "bin",
-    ]
-    for p in candidates:
-        if (p / "ffmpeg.exe").exists():
-            os.environ["PATH"] = str(p) + os.pathsep + os.environ.get("PATH", "")
-            print(f"ℹ️  ffmpeg encontrado em: {p}")
-            return True
     print("⚠️  ffmpeg não encontrado. Instale o ffmpeg e adicione ao PATH.")
     print("    Download: https://ffmpeg.org/download.html")
     return False
@@ -252,13 +239,13 @@ Regras obrigatórias:
 # ORQUESTRADOR
 # ─────────────────────────────────────────────
 
-def process_video(video: dict, index: int, total: int):
-    """Processa um vídeo completo passo a passo."""
+def process_video(video: dict, index: int, total: int) -> Path:
+    """Processa um vídeo completo passo a passo. Retorna a pasta de saída."""
     print(f"\n{'═'*60}")
     print(f"🎬 [{index}/{total}] {video['title']}")
     print(f"{'═'*60}")
 
-    folder_name = f"{index:02d}_{sanitize_filename(video['title'])}"
+    folder_name = f"{video['index']:02d}_{sanitize_filename(video['title'])}"
     video_dir = OUTPUT_DIR / folder_name
     video_dir.mkdir(parents=True, exist_ok=True)
 
@@ -278,6 +265,8 @@ def process_video(video: dict, index: int, total: int):
     except Exception as e:
         print(f"\n  ❌ Erro: {e}")
         (video_dir / "error.txt").write_text(str(e), encoding="utf-8")
+
+    return video_dir
 
 
 def main():

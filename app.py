@@ -168,40 +168,8 @@ class App(tk.Tk):
                     self._q.put(("log", "🛑 Análise cancelada pelo usuário."))
                     break
 
-                self._q.put(("log", f"\n{'─' * 52}"))
-                self._q.put(("log", f"🎬 [{i}/{total}] {video['title']}"))
-
-                folder = f"{video['index']:02d}_{pipeline.sanitize_filename(video['title'])}"
-                vdir = pipeline.OUTPUT_DIR / folder
-                vdir.mkdir(parents=True, exist_ok=True)
-
-                meta = vdir / "meta.json"
-                if not meta.exists():
-                    meta.write_text(
-                        json.dumps(video, ensure_ascii=False, indent=2), encoding="utf-8"
-                    )
-
-                try:
-                    self._q.put(("log", "  ⬇️  Baixando áudio..."))
-                    audio = pipeline.download_audio(video, vdir)
-
-                    self._q.put(("log", "  🎙️  Transcrevendo..."))
-                    transcript = pipeline.transcribe_audio(audio, vdir)
-
-                    self._q.put(("log", "  🤖 Gerando análise..."))
-                    pipeline.generate_analysis(video["title"], transcript, vdir)
-
-                    self._q.put(("log", "  🗺️  Gerando mapa mental..."))
-                    pipeline.generate_mindmap(video["title"], transcript, vdir)
-
-                    self._q.put(("log", "  ✅ Concluído!"))
-                    processed.append((video["title"], vdir))
-
-                except Exception as exc:
-                    self._q.put(("log", f"  ❌ Erro: {exc}"))
-                    (vdir / "error.txt").write_text(str(exc), encoding="utf-8")
-                    processed.append((video["title"], vdir))
-
+                # pipeline's own print() output reaches the log via _QueueStream
+                processed.append((video["title"], pipeline.process_video(video, i, total)))
                 self._q.put(("progress", i))
                 if i < total:
                     time.sleep(1)
