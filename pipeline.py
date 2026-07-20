@@ -7,7 +7,6 @@ Baixa áudios, transcreve com Whisper e gera resumo, análise e mapa mental via 
 import os
 import json
 import shutil
-import time
 import re
 import subprocess
 from pathlib import Path
@@ -288,8 +287,6 @@ def main():
 
     for i, video in enumerate(videos, 1):
         process_video(video, i, len(videos))
-        if i < len(videos):
-            time.sleep(2)  # Pausa entre vídeos para não sobrecarregar as APIs
 
     print(f"\n{'═'*60}")
     print(f"🎉 Processamento concluído!")

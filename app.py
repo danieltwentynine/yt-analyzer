@@ -7,7 +7,6 @@ import json
 import queue
 import subprocess
 import threading
-import time
 from pathlib import Path
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
@@ -76,13 +75,7 @@ def _videos_from_txt(path: str) -> list[dict]:
     result = []
     for i, url in enumerate(urls, 1):
         try:
-            r = subprocess.run(
-                ["yt-dlp", "--no-playlist", "-j", url],
-                capture_output=True, text=True, check=True,
-            )
-            d = json.loads(r.stdout)
-            result.append({"index": i, "id": d.get("id"),
-                            "title": d.get("title", f"video_{i}"), "url": url})
+            result.append(_single_video(url) | {"index": i})
         except Exception:
             result.append({"index": i, "id": None,
                             "title": f"video_{i}", "url": url})
@@ -171,8 +164,6 @@ class App(tk.Tk):
                 # pipeline's own print() output reaches the log via _QueueStream
                 processed.append((video["title"], pipeline.process_video(video, i, total)))
                 self._q.put(("progress", i))
-                if i < total:
-                    time.sleep(1)
 
             self._q.put(("done", processed))
 
@@ -201,15 +192,16 @@ class App(tk.Tk):
         self.after(100, self._poll)
 
 
+MODES = {
+    "video":    "Vídeo único",
+    "playlist": "Playlist",
+    "channel":  "Canal inteiro",
+    "txt":      "Arquivo .txt",
+}
+
+
 # ── Screen 1: Home ────────────────────────────────────────────────────
 class HomeFrame(tk.Frame):
-    _MODES = [
-        ("Vídeo único",   "video"),
-        ("Playlist",      "playlist"),
-        ("Canal inteiro", "channel"),
-        ("Arquivo .txt",  "txt"),
-    ]
-
     def __init__(self, app: App):
         super().__init__(app, bg=BG)
         self._app = app
@@ -221,7 +213,7 @@ class HomeFrame(tk.Frame):
 
         row = tk.Frame(self, bg=BG)
         row.pack()
-        for label, mode in self._MODES:
+        for mode, label in MODES.items():
             _btn(row, label, lambda m=mode: self._go(m), width=14).pack(side="left", padx=10)
 
     def _go(self, mode: str):
@@ -232,13 +224,6 @@ class HomeFrame(tk.Frame):
 
 # ── Screen 2: Config ──────────────────────────────────────────────────
 class ConfigFrame(tk.Frame):
-    _LABELS = {
-        "video":   "Vídeo único",
-        "playlist": "Playlist",
-        "channel": "Canal inteiro",
-        "txt":     "Arquivo .txt",
-    }
-
     def __init__(self, app: App):
         super().__init__(app, bg=BG)
         self._app = app
@@ -280,15 +265,11 @@ class ConfigFrame(tk.Frame):
 
         style = ttk.Style()
         style.theme_use("clam")
-        for name, cfg in [
-            ("D.TCombobox", dict(fieldbackground=BG3, background=BG3, foreground=FG,
-                                    selectbackground=SEL_BG, selectforeground=FG,
-                                    arrowcolor=FG, bordercolor=BG2)),
-            ("B.Horizontal.TProgressbar", dict(troughcolor=BG3, background=BLUE,
-                                                bordercolor=BG, lightcolor=BLUE,
-                                                darkcolor=BLUE, thickness=18)),
-        ]:
-            style.configure(name, **cfg)
+        style.configure("D.TCombobox", fieldbackground=BG3, background=BG3, foreground=FG,
+                        selectbackground=SEL_BG, selectforeground=FG,
+                        arrowcolor=FG, bordercolor=BG2)
+        style.configure("B.Horizontal.TProgressbar", troughcolor=BG3, background=BLUE,
+                        bordercolor=BG, lightcolor=BLUE, darkcolor=BLUE, thickness=18)
         style.map("D.TCombobox",
                     fieldbackground=[("readonly", BG3)],
                     foreground=[("readonly", FG)],
@@ -309,7 +290,7 @@ class ConfigFrame(tk.Frame):
         _btn(btn_row, "Iniciar análise", self._start).pack(side="left", padx=8)
 
     def refresh(self, mode: str):
-        self._title.config(text=self._LABELS.get(mode, ""))
+        self._title.config(text=MODES.get(mode, ""))
         self._url_frame.pack_forget()
         self._file_frame.pack_forget()
         if mode == "txt":
