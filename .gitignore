@@ -11,3 +11,6 @@ pyvenv.cfg
 # PyInstaller build artifacts
 /build
 /dist
+
+# deno.exe fetched by build.ps1 to bundle into the .exe
+/deno.exe

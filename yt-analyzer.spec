@@ -7,8 +7,9 @@ Build:
 Output (one-folder build):
     dist/YouTube Analyzer/YouTube Analyzer.exe
 
-Optional environment variable:
+Optional environment variables:
     YTA_FFMPEG   full path to ffmpeg.exe to bundle (default: auto-detect on PATH)
+    YTA_DENO     full path to deno.exe to bundle   (default: auto-detect on PATH)
 """
 import os
 import shutil
@@ -36,6 +37,15 @@ if _ffmpeg and os.path.exists(_ffmpeg):
     print(f"[spec] bundling ffmpeg: {_ffmpeg}")
 else:
     print("[spec] WARNING: ffmpeg not found — the .exe will need ffmpeg on the user's PATH")
+
+# ── Bundle deno.exe (JS runtime yt-dlp needs to download YouTube) ──────
+_deno = os.environ.get("YTA_DENO") or shutil.which("deno")
+if _deno and os.path.exists(_deno):
+    binaries += [(_deno, ".")]
+    print(f"[spec] bundling deno: {_deno}")
+else:
+    print("[spec] WARNING: deno not found — the .exe will need a JS runtime "
+          "(deno/node/bun) on the user's PATH")
 
 a = Analysis(
     ["app.py"],

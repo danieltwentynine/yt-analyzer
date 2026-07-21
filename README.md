@@ -52,7 +52,7 @@ The result lands in `dist\YouTube Analyzer\`. **Distribute the whole folder** �
 
 The build is driven by [`yt-analyzer.spec`](yt-analyzer.spec) (PyInstaller), which:
 
-- Bundles PyTorch + Whisper, the yt-dlp extractors, numba/llvmlite, and the `ffmpeg.exe` found on PATH — the app is self-contained.
+- Bundles PyTorch + Whisper, the yt-dlp extractors, numba/llvmlite, `ffmpeg.exe`, and `deno.exe` (the JS runtime yt-dlp needs) — the app is self-contained. `deno.exe` is downloaded automatically by `build.ps1` if it is not already on PATH.
 - Produces a ~2–3 GB folder (PyTorch is large; this is expected).
 
 ### What the end user still needs
@@ -61,7 +61,7 @@ The `.exe` embeds everything **except** Ollama, which is a separate server:
 
 - Install [Ollama](https://ollama.com/download) and keep it running.
 - Pull a model: `ollama pull mistral`.
-- On the first analysis, Whisper automatically downloads the model weights (~1.5 GB for `medium`) to `~/.cache/whisper` — this requires internet the first time.
+- On the first analysis, Whisper automatically downloads the model weights (~1.5 GB for `medium`) to `~/.cache/whisper`, and yt-dlp downloads a small challenge-solver script — both require internet the first time.
 
 > Results are saved to an `output/` folder created **next to the `.exe`**.
 
@@ -91,6 +91,7 @@ output/
 
 - Python 3.10+
 - [ffmpeg](https://ffmpeg.org/download.html) installed on the system (required by Whisper and yt-dlp)
+- A JavaScript runtime — [Deno](https://deno.com) (recommended), [Node.js](https://nodejs.org) or [Bun](https://bun.sh). Recent YouTube requires one to solve the signature/"n" challenges; without it many videos fail with *"video unavailable"* or lose their downloadable formats.
 - [Ollama](https://ollama.com) installed and running locally
 
 **macOS:**
@@ -240,6 +241,9 @@ yt-dlp is used as a **Python library** (installed via `requirements.txt`), not a
 ```bash
 pip install -U yt-dlp
 ```
+
+**`Video unavailable` / missing formats**
+Recent YouTube requires a JavaScript runtime to solve the signature/"n" challenges. Install [Deno](https://deno.com), [Node.js](https://nodejs.org) or [Bun](https://bun.sh) and make sure it is on your `PATH` — the app enables all three automatically and uses whichever one is present. The first run downloads a small challenge-solver script from GitHub (cached afterwards), so internet access is required.
 
 **`ffmpeg not found`**
 Install ffmpeg following the instructions above. In the executable (`.exe`) ffmpeg is already bundled.

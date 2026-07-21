@@ -11,6 +11,9 @@
     Notes:
       * Bundles ffmpeg.exe found on PATH. To bundle a specific copy, set
         $env:YTA_FFMPEG = "C:\path\to\ffmpeg.exe" before running.
+      * Bundles deno.exe (the JS runtime yt-dlp needs to download YouTube). If
+        deno is not on PATH it is downloaded automatically into the project.
+        To bundle a specific copy, set $env:YTA_DENO = "C:\path\to\deno.exe".
       * The end user still needs Ollama installed and running, plus a pulled
         model (e.g. `ollama pull mistral`). Whisper model weights download on
         first run.
@@ -26,6 +29,33 @@ if (-not (Test-Path $python)) {
 Write-Host "==> Installing build dependencies (PyInstaller)..." -ForegroundColor Cyan
 & $python -m pip install --upgrade pip
 & $python -m pip install -r (Join-Path $PSScriptRoot "requirements-build.txt")
+
+# ── Ensure a deno.exe is available to bundle ──────────────────────────
+Write-Host "==> Checking for deno (JS runtime for yt-dlp)..." -ForegroundColor Cyan
+if (-not $env:YTA_DENO) {
+    $onPath = (Get-Command deno -ErrorAction SilentlyContinue).Source
+    $local  = Join-Path $PSScriptRoot "deno.exe"
+    if ($onPath) {
+        $env:YTA_DENO = $onPath
+        Write-Host "    Using deno on PATH: $onPath"
+    } elseif (Test-Path $local) {
+        $env:YTA_DENO = $local
+        Write-Host "    Using bundled deno: $local"
+    } else {
+        Write-Host "    deno not found — downloading the official Windows build..." -ForegroundColor Yellow
+        $url = "https://github.com/denoland/deno/releases/latest/download/deno-x86_64-pc-windows-msvc.zip"
+        $zip = Join-Path $env:TEMP "deno-download.zip"
+        $ext = Join-Path $env:TEMP "deno-extract"
+        Invoke-WebRequest -Uri $url -OutFile $zip
+        if (Test-Path $ext) { Remove-Item -Recurse -Force $ext }
+        Expand-Archive -Path $zip -DestinationPath $ext -Force
+        Copy-Item (Join-Path $ext "deno.exe") $local -Force
+        Remove-Item -Force $zip
+        Remove-Item -Recurse -Force $ext
+        $env:YTA_DENO = $local
+        Write-Host "    deno downloaded to: $local"
+    }
+}
 
 Write-Host "==> Building with PyInstaller (bundles PyTorch/Whisper — this takes several minutes)..." -ForegroundColor Cyan
 & $python -m PyInstaller --noconfirm --clean "yt-analyzer.spec"

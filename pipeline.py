@@ -81,12 +81,55 @@ def ensure_ffmpeg() -> bool:
 
 
 # ─────────────────────────────────────────────
+# JS RUNTIME (yt-dlp needs one to solve YouTube's signature / "n" challenges)
+# ─────────────────────────────────────────────
+
+def _find_deno() -> str | None:
+    """Locate deno: the system PATH or the binary bundled with the app."""
+    found = shutil.which("deno")
+    if found:
+        return found
+    for cand in (
+        _bundle_dir() / "deno.exe",
+        app_base_dir() / "deno.exe",
+    ):
+        if cand.exists():
+            return str(cand)
+    return None
+
+
+def _js_runtimes_config() -> dict:
+    """JavaScript runtimes to hand to yt-dlp.
+
+    Recent YouTube requires a JS runtime to solve the signature / "n"
+    challenges; without one many videos fail with "video unavailable" or lose
+    their downloadable formats. Enable every supported runtime so yt-dlp uses
+    whichever is present (deno, node or bun), and point deno at the binary
+    bundled with the packaged .exe when it is not on PATH.
+    """
+    runtimes: dict = {"deno": {}, "node": {}, "bun": {}}
+    deno = _find_deno()
+    if deno:
+        runtimes["deno"] = {"path": deno}
+    return runtimes
+
+
+# ─────────────────────────────────────────────
 # YT-DLP (Python API — works when packaged, no PATH command required)
 # ─────────────────────────────────────────────
 
 def _ydl(opts: dict) -> "yt_dlp.YoutubeDL":
     """Create a YoutubeDL with default options + the ffmpeg location."""
-    base = {"quiet": True, "no_warnings": True, "noprogress": True}
+    base = {
+        "quiet": True,
+        "no_warnings": True,
+        "noprogress": True,
+        "js_runtimes": _js_runtimes_config(),
+        # Allow fetching the challenge-solver script from the yt-dlp-ejs GitHub
+        # release (cached after the first download). Required for the runtime
+        # above to actually solve the challenges.
+        "remote_components": ["ejs:github"],
+    }
     base.update(opts)
     loc = _ffmpeg_location()
     if loc:
