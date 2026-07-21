@@ -1,142 +1,144 @@
 # YouTube Analyzer
 
-Baixa automaticamente vídeos do YouTube, transcreve com Whisper e gera **resumo**, **análise crítica** e **mapa mental em JSON** para cada vídeo — tudo rodando localmente via Ollama, sem depender de APIs externas pagas.
+Automatically downloads YouTube videos, transcribes them with Whisper, and generates a **summary**, a **critical analysis**, and a **mind map in JSON** for each video — all running locally via Ollama, with no dependency on paid external APIs.
 
-Disponível como **interface gráfica** (`app.py`) e como **script de linha de comando** (`pipeline.py`).
+Available as a **graphical interface** (`app.py`) and as a **command-line script** (`pipeline.py`).
 
 ---
 
-## Interface gráfica (recomendado)
+## Graphical interface (recommended)
 
 ```bash
 python app.py
 ```
 
-A interface guia você por quatro telas:
+The interface walks you through four screens:
 
-| Tela | Descrição |
-|---|---|
-| **Menu inicial** | Escolha o modo: Vídeo único, Playlist, Canal inteiro ou Arquivo .txt |
-| **Configuração** | Cole a URL (ou selecione o arquivo), escolha o modelo Ollama e inicie |
-| **Progresso** | Barra de progresso geral + log em tempo real de cada etapa |
-| **Resultados** | Lista dos vídeos processados com botão "Abrir pasta" para cada um |
+| Screen | Description |
+| --- | --- |
+| **Home** | Choose the mode: Single video, Playlist, Entire channel, or .txt file |
+| **Config** | Paste the URL (or select the file), choose the Ollama model, and start |
+| **Progress** | Overall progress bar + real-time log of each step |
+| **Results** | List of processed videos with an "Open folder" button for each |
 
-> O `app.py` é o entry point principal e chama as funções do `pipeline.py` internamente.
+> `app.py` is the main entry point and calls the functions in `pipeline.py` internally.
 
 ---
 
-## CLI (linha de comando)
+## CLI (command line)
 
 ```bash
 python pipeline.py
 ```
 
-Cole a URL quando solicitado. Útil para automação ou ambientes sem interface gráfica.
+Paste the URL when prompted. Useful for automation or environments without a GUI.
 
 ---
 
-## Executável Windows (.exe)
+## Windows executable (.exe)
 
-Gere um aplicativo Windows autônomo (não exige Python instalado no computador do usuário final):
+Build a standalone Windows app (no Python required on the end user's machine):
 
 ```powershell
-# 1. Crie o ambiente virtual e instale as dependências de runtime
+# 1. Create the virtual environment and install the runtime dependencies
 py -3.14 -m venv venv
 venv\Scripts\pip install -r requirements.txt
 
-# 2. Gere o executável
-.\build.ps1        # ou dê duplo-clique em build.bat
+# 2. Build the executable
+.\build.ps1        # or double-click build.bat
 ```
 
-O resultado fica em `dist\YouTube Analyzer\`. **Distribua a pasta inteira** — o `.exe` depende dos arquivos ao lado dele, não apenas do próprio `.exe`.
+The result lands in `dist\YouTube Analyzer\`. **Distribute the whole folder** — the `.exe` depends on the files next to it, not just the `.exe` itself.
 
-O build é controlado por [`yt-analyzer.spec`](yt-analyzer.spec) (PyInstaller), que:
+The build is driven by [`yt-analyzer.spec`](yt-analyzer.spec) (PyInstaller), which:
 
-- Empacota PyTorch + Whisper, os extratores do yt-dlp, numba/llvmlite e o `ffmpeg.exe` encontrado no PATH — o app fica autossuficiente.
-- Produz uma pasta de ~2–3 GB (o PyTorch é grande; isso é esperado).
+- Bundles PyTorch + Whisper, the yt-dlp extractors, numba/llvmlite, and the `ffmpeg.exe` found on PATH — the app is self-contained.
+- Produces a ~2–3 GB folder (PyTorch is large; this is expected).
 
-### O que o usuário final ainda precisa
+### What the end user still needs
 
-O `.exe` embute tudo, **exceto** o Ollama, que é um servidor separado:
+The `.exe` embeds everything **except** Ollama, which is a separate server:
 
-- Instale o [Ollama](https://ollama.com/download) e deixe-o rodando.
-- Baixe um modelo: `ollama pull mistral`.
-- Na primeira análise, o Whisper baixa automaticamente os pesos do modelo (~1.5 GB para `medium`) em `~/.cache/whisper` — requer internet nessa primeira vez.
+- Install [Ollama](https://ollama.com/download) and keep it running.
+- Pull a model: `ollama pull mistral`.
+- On the first analysis, Whisper automatically downloads the model weights (~1.5 GB for `medium`) to `~/.cache/whisper` — this requires internet the first time.
 
-> Os resultados são salvos na pasta `output/` criada **ao lado do `.exe`**.
+> Results are saved to an `output/` folder created **next to the `.exe`**.
 
 ---
 
-## Estrutura de saída
+## Output structure
 
-Após a execução, a pasta `output/` terá:
+After a run, the `output/` folder contains:
 
-```
+```text
 output/
-├── 01_Titulo-do-Video/
-│   ├── meta.json            ← metadados do vídeo (título, URL, id)
-│   ├── audio.mp3            ← áudio baixado
-│   ├── transcript.txt       ← transcrição completa
-│   ├── resumo_analise.md    ← resumo + análise crítica (Markdown)
-│   └── mapa_mental.json     ← mapa mental hierárquico (JSON)
-├── 02_Outro-Video/
+├── 01_Video-Title/
+│   ├── meta.json             ← video metadata (title, URL, id)
+│   ├── audio.mp3             ← downloaded audio
+│   ├── transcript.txt        ← full transcript
+│   ├── summary_analysis.md   ← summary + critical analysis (Markdown)
+│   └── mind_map.json         ← hierarchical mind map (JSON)
+├── 02_Another-Video/
 │   └── ...
 ```
 
 ---
 
-## Instalação
+## Installation
 
-### 1. Pré-requisitos
+### 1. Prerequisites
 
 - Python 3.10+
-- [ffmpeg](https://ffmpeg.org/download.html) instalado no sistema (necessário para Whisper e yt-dlp)
-- [Ollama](https://ollama.com) instalado e rodando localmente
+- [ffmpeg](https://ffmpeg.org/download.html) installed on the system (required by Whisper and yt-dlp)
+- [Ollama](https://ollama.com) installed and running locally
 
 **macOS:**
+
 ```bash
 brew install ffmpeg
 brew install ollama
 ```
 
 **Linux (Ubuntu/Debian):**
+
 ```bash
 sudo apt install ffmpeg
 curl -fsSL https://ollama.com/install.sh | sh
 ```
 
 **Windows:**
-Baixe o ffmpeg em https://ffmpeg.org/download.html e o Ollama em https://ollama.com/download. Adicione o ffmpeg ao PATH.
+Download ffmpeg from <https://ffmpeg.org/download.html> and Ollama from <https://ollama.com/download>. Add ffmpeg to your PATH.
 
 ---
 
-### 2. Baixe um modelo Ollama
+### 2. Pull an Ollama model
 
-O modelo padrão é o `mistral`. Baixe-o antes de executar o pipeline:
+The default model is `mistral`. Pull it before running the pipeline:
 
 ```bash
 ollama pull mistral
 ```
 
-Outros modelos compatíveis: `llama3`, `gemma2`, `phi3`. Qualquer modelo de instrução funciona.
+Other compatible models: `llama3`, `gemma2`, `phi3`. Any instruction-tuned model works.
 
 ---
 
-### 3. Clone / copie os arquivos
+### 3. Clone / copy the files
 
-Coloque `app.py`, `pipeline.py`, `requirements.txt` e `.env` em uma pasta.
+Place `app.py`, `pipeline.py`, `requirements.txt`, and `.env` in a folder.
 
 ---
 
-### 4. Crie o ambiente virtual e instale dependências
+### 4. Create the virtual environment and install dependencies
 
 ```bash
 python -m venv venv
 
-# Ativar (macOS/Linux):
+# Activate (macOS/Linux):
 source venv/bin/activate
 
-# Ativar (Windows):
+# Activate (Windows):
 venv\Scripts\activate
 
 pip install -r requirements.txt
@@ -144,9 +146,9 @@ pip install -r requirements.txt
 
 ---
 
-### 5. Configure as variáveis de ambiente
+### 5. Configure the environment variables
 
-Crie um arquivo `.env` na raiz do projeto com as variáveis abaixo (todas opcionais — os valores mostrados são os padrões):
+Create a `.env` file in the project root with the variables below (all optional — the values shown are the defaults):
 
 ```env
 WHISPER_MODEL=medium
@@ -154,118 +156,130 @@ WHISPER_LANGUAGE=pt
 OLLAMA_MODEL=mistral
 ```
 
+> `WHISPER_LANGUAGE` is the spoken language of the videos you transcribe (e.g. `en`, `pt`, `es`). Leave it empty for automatic detection.
+
 ---
 
-### 6. Execute
+### 6. Run
 
-Certifique-se de que o Ollama está rodando (`ollama serve` ou via app), então:
+Make sure Ollama is running (`ollama serve` or via the app), then:
 
-**Interface gráfica:**
+**Graphical interface:**
+
 ```bash
 python app.py
 ```
 
-**Linha de comando:**
+**Command line:**
+
 ```bash
 python pipeline.py
 ```
 
-Cole a URL quando solicitado. Exemplos de URLs suportadas:
-```
-https://www.youtube.com/watch?v=xxxxxxxxxxx          # vídeo único
+Paste the URL when prompted. Examples of supported URLs:
+
+```text
+https://www.youtube.com/watch?v=xxxxxxxxxxx          # single video
 https://www.youtube.com/playlist?list=PLxxxxxxxxxxxx # playlist
-https://www.youtube.com/@canal/videos                # canal inteiro
+https://www.youtube.com/@channel/videos              # entire channel
 ```
 
 ---
 
-## Importando o mapa mental
+## Importing the mind map
 
 ### XMind
-1. Abra o XMind
-2. File → Import → JSON (ou use o xmind-cli para converter)
-3. Selecione o arquivo `mapa_mental.json`
+
+1. Open XMind
+2. File → Import → JSON (or use xmind-cli to convert)
+3. Select the `mind_map.json` file
 
 ### Miro
-1. Crie um novo board
-2. Import → JSON
-3. Selecione o arquivo `mapa_mental.json`
 
-### Markmap (visualização rápida no browser)
-1. Acesse https://markmap.js.org/repl
-2. Cole o conteúdo do `resumo_analise.md` e visualize como mapa mental
+1. Create a new board
+2. Import → JSON
+3. Select the `mind_map.json` file
+
+### Markmap (quick visualization in the browser)
+
+1. Go to <https://markmap.js.org/repl>
+2. Paste the contents of `summary_analysis.md` and visualize it as a mind map
 
 ---
 
 ## Performance
 
-| Situação | Whisper Model Recomendado |
-|---|---|
-| Vídeos curtos / teste rápido | `tiny` ou `base` |
-| Uso geral / bom equilíbrio | `medium` (padrão) |
-| Máxima precisão em PT-BR | `large` |
+| Situation | Recommended Whisper Model |
+| --- | --- |
+| Short videos / quick test | `tiny` or `base` |
+| General use / good balance | `medium` (default) |
+| Maximum accuracy | `large` |
 
-| Situação | Ollama Model Recomendado |
-|---|---|
-| Hardware limitado (RAM < 8GB) | `phi3` ou `gemma2:2b` |
-| Uso geral | `mistral` (padrão) |
-| Máxima qualidade | `llama3` ou `gemma2` |
+| Situation | Recommended Ollama Model |
+| --- | --- |
+| Limited hardware (RAM < 8GB) | `phi3` or `gemma2:2b` |
+| General use | `mistral` (default) |
+| Maximum quality | `llama3` or `gemma2` |
 
-> O modelo Whisper é baixado automaticamente na primeira execução (~1.5GB para `medium`).
-> O modelo Ollama precisa ser baixado manualmente com `ollama pull <modelo>`.
+> The Whisper model is downloaded automatically on the first run (~1.5GB for `medium`).
+> The Ollama model must be pulled manually with `ollama pull <model>`.
 
 ---
 
-## Retomada automática
+## Automatic resume
 
-O script **não reprocessa** arquivos que já existem. Se a execução for interrompida, basta rodar novamente que ela continua de onde parou.
+The script **does not reprocess** files that already exist. If a run is interrupted, just run it again and it continues where it left off.
 
 ---
 
 ## Troubleshooting
 
-**Erro ao baixar vídeo (yt-dlp)**
-O yt-dlp é usado como **biblioteca Python** (instalado via `requirements.txt`), não como comando externo. Se o download falhar, atualize-o:
+**Video download error (yt-dlp)**
+yt-dlp is used as a **Python library** (installed via `requirements.txt`), not as an external command. If a download fails, update it:
+
 ```bash
 pip install -U yt-dlp
 ```
 
 **`ffmpeg not found`**
-Instale o ffmpeg conforme as instruções acima. No executável (`.exe`) o ffmpeg já vem embutido.
+Install ffmpeg following the instructions above. In the executable (`.exe`) ffmpeg is already bundled.
 
 **`ollama: connection refused`**
-O servidor Ollama não está rodando. Execute `ollama serve` em outro terminal ou abra o app Ollama.
+The Ollama server is not running. Run `ollama serve` in another terminal or open the Ollama app.
 
-**Modelo não encontrado**
+**Model not found**
+
 ```bash
 ollama pull mistral
 ```
-Ou defina outro modelo em `.env` com `OLLAMA_MODEL=nome-do-modelo`.
+
+Or set a different model in `.env` with `OLLAMA_MODEL=model-name`.
 
 ---
 
-## Alterações recentes
+## Changelog
 
-### Suporte a executável Windows (`.exe`)
+### English migration
 
-- Novo build **PyInstaller** — arquivos [`yt-analyzer.spec`](yt-analyzer.spec), [`build.ps1`](build.ps1), [`build.bat`](build.bat) e [`requirements-build.txt`](requirements-build.txt) — que empacota o app numa pasta autônoma `dist\YouTube Analyzer\`. Veja a seção [Executável Windows (.exe)](#executável-windows-exe).
-- O `ffmpeg.exe` é **embutido automaticamente** no build (a partir do PATH da máquina de build) e localizado em tempo de execução — o usuário final não precisa instalar ffmpeg.
-- Hook de runtime (`pyi_rthooks/no_console.py`) que **suprime as janelas de console** que piscavam a cada chamada do ffmpeg (download/transcrição).
+- The entire project — GUI, console/log messages, comments, and the LLM prompts — is now in **English**. The generated `summary_analysis.md` / `mind_map.json` are produced in English.
+- Output files were renamed: `resumo_analise.md` → `summary_analysis.md`, `mapa_mental.json` → `mind_map.json`.
 
-### yt-dlp via API Python (em vez de comando externo)
+### Windows executable (`.exe`) support
 
-- `pipeline.py` e `app.py` agora usam o `yt_dlp` como **biblioteca** (`yt_dlp.YoutubeDL`), não mais `subprocess.run(["yt-dlp", ...])`. Isso faz o download funcionar dentro do `.exe`, onde não existe o comando `yt-dlp` no PATH.
-- Novo helper `pipeline.get_video_info()` centraliza a extração de metadados de um único vídeo (usado pelos modos **Vídeo único** e **Arquivo .txt**).
+- New **PyInstaller** build — [`yt-analyzer.spec`](yt-analyzer.spec), [`build.ps1`](build.ps1), [`build.bat`](build.bat), and [`requirements-build.txt`](requirements-build.txt) — that packages the app into a standalone `dist\YouTube Analyzer\` folder. See the [Windows executable (.exe)](#windows-executable-exe) section.
+- `ffmpeg.exe` is **bundled automatically** at build time (from the build machine's PATH) and located at runtime — the end user does not need to install ffmpeg.
+- A runtime hook (`pyi_rthooks/no_console.py`) **suppresses the console windows** that used to flash on every ffmpeg call (download/transcription).
 
-### Caminhos cientes de empacotamento
+### yt-dlp via the Python API (instead of an external command)
 
-- A pasta `output/` é criada **ao lado do executável** (ou na raiz do projeto, ao rodar via Python), em vez de depender do diretório de trabalho atual.
-- Descoberta automática do ffmpeg: PATH do sistema → binário embutido no build.
+- `pipeline.py` and `app.py` now use `yt_dlp` as a **library** (`yt_dlp.YoutubeDL`), no longer `subprocess.run(["yt-dlp", ...])`. This makes downloads work inside the `.exe`, where there is no `yt-dlp` command on PATH.
+- New `pipeline.get_video_info()` helper centralizes single-video metadata extraction (used by the **Single video** and **.txt file** modes).
 
-### Correção do ambiente virtual
+### Packaging-aware paths
 
-- O `venv/pyvenv.cfg` apontava para um Python-base inexistente (`C:\Python314`), o que quebrava o `pip`. Corrigido para o caminho real do interpretador.
+- The `output/` folder is created **next to the executable** (or the project root when running via Python), instead of depending on the current working directory.
+- Automatic ffmpeg discovery: system PATH → binary bundled in the build.
 
 ### `.gitignore`
 
-- Passa a ignorar os artefatos de build do PyInstaller (`/build`, `/dist`).
+- Now ignores the PyInstaller build artifacts (`/build`, `/dist`).

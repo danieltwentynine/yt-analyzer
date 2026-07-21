@@ -125,7 +125,7 @@ class App(tk.Tk):
 
     def cancel(self):
         self._cancel.set()
-        self._q.put(("log", "⚠️  Cancelamento solicitado — aguardando o vídeo atual terminar."))
+        self._q.put(("log", "⚠️  Cancellation requested — waiting for the current video to finish."))
 
     def _run(self, mode: str, url: str, model: str, txt: str):
         old = sys.stdout
@@ -136,13 +136,13 @@ class App(tk.Tk):
             pipeline.OUTPUT_DIR.mkdir(exist_ok=True)
 
             # 1. Build video list
-            self._q.put(("log", "🔍 Obtendo lista de vídeos..."))
+            self._q.put(("log", "🔍 Fetching the list of videos..."))
             if mode == "video":
                 videos = [_single_video(url)]
             elif mode in ("playlist", "channel"):
                 videos = pipeline.get_playlist_videos(url)
             else:                                       # txt
-                self._q.put(("log", f"📄 Lendo: {txt}"))
+                self._q.put(("log", f"📄 Reading: {txt}"))
                 videos = _videos_from_txt(txt)
 
             total = len(videos)
@@ -152,7 +152,7 @@ class App(tk.Tk):
             processed: list[tuple[str, Path]] = []
             for i, video in enumerate(videos, 1):
                 if self._cancel.is_set():
-                    self._q.put(("log", "🛑 Análise cancelada pelo usuário."))
+                    self._q.put(("log", "🛑 Analysis cancelled by the user."))
                     break
 
                 # pipeline's own print() output reaches the log via _QueueStream
@@ -162,7 +162,7 @@ class App(tk.Tk):
             self._q.put(("done", processed))
 
         except Exception as exc:
-            self._q.put(("log", f"❌ Erro fatal: {exc}"))
+            self._q.put(("log", f"❌ Fatal error: {exc}"))
             self._q.put(("error", str(exc)))
         finally:
             sys.stdout = old
@@ -179,7 +179,7 @@ class App(tk.Tk):
                     self._frames["results"].populate(data)  # type: ignore[attr-defined]
                     self.show("results")
                 elif kind == "error":
-                    messagebox.showerror("Erro", data)
+                    messagebox.showerror("Error", data)
                     self.show("config")
         except queue.Empty:
             pass
@@ -187,10 +187,10 @@ class App(tk.Tk):
 
 
 MODES = {
-    "video":    "Vídeo único",
+    "video":    "Single video",
     "playlist": "Playlist",
-    "channel":  "Canal inteiro",
-    "txt":      "Arquivo .txt",
+    "channel":  "Entire channel",
+    "txt":      ".txt file",
 }
 
 
@@ -202,7 +202,7 @@ class HomeFrame(tk.Frame):
 
         tk.Label(self, text="YouTube Analyzer",
                     bg=BG, fg=FG, font=("Segoe UI", 28, "bold")).pack(pady=(90, 10))
-        tk.Label(self, text="Selecione o modo de análise",
+        tk.Label(self, text="Choose the analysis mode",
                     bg=BG, fg=FG_DIM, font=("Segoe UI", 13)).pack(pady=(0, 56))
 
         row = tk.Frame(self, bg=BG)
@@ -240,13 +240,13 @@ class ConfigFrame(tk.Frame):
 
         # File widget
         self._file_frame = tk.Frame(self._input_area, bg=BG)
-        _label(self._file_frame, "Arquivo .txt:").pack(anchor="w")
+        _label(self._file_frame, ".txt file:").pack(anchor="w")
         file_row = tk.Frame(self._file_frame, bg=BG)
         file_row.pack(fill="x", pady=(4, 0))
         tk.Entry(file_row, textvariable=app.txt_path,
                     bg=BG3, fg=FG, insertbackground=FG,
                     relief="flat", font=FONT).pack(side="left", fill="x", expand=True, ipady=7)
-        _btn(file_row, "Escolher…", self._pick,
+        _btn(file_row, "Choose…", self._pick,
                 padx=10, pady=5).pack(side="left", padx=(8, 0))
 
         # Default: show URL input
@@ -255,7 +255,7 @@ class ConfigFrame(tk.Frame):
         # ── Model selector ───────────────────────────────────────────
         model_area = tk.Frame(self, bg=BG)
         model_area.pack(fill="x", padx=80, pady=(24, 0))
-        _label(model_area, "Modelo Ollama:").pack(anchor="w")
+        _label(model_area, "Ollama model:").pack(anchor="w")
 
         style = ttk.Style()
         style.theme_use("clam")
@@ -279,9 +279,9 @@ class ConfigFrame(tk.Frame):
         # ── Buttons ───────────────────────────────────────────────────
         btn_row = tk.Frame(self, bg=BG)
         btn_row.pack(pady=(40, 0))
-        _btn(btn_row, "← Voltar", lambda: app.show("home"),
+        _btn(btn_row, "← Back", lambda: app.show("home"),
                 bg=BG2).pack(side="left", padx=8)
-        _btn(btn_row, "Iniciar análise", self._start).pack(side="left", padx=8)
+        _btn(btn_row, "Start analysis", self._start).pack(side="left", padx=8)
 
     def refresh(self, mode: str):
         self._title.config(text=MODES.get(mode, ""))
@@ -294,8 +294,8 @@ class ConfigFrame(tk.Frame):
 
     def _pick(self):
         p = filedialog.askopenfilename(
-            title="Selecionar arquivo de URLs",
-            filetypes=[("Texto", "*.txt"), ("Todos os arquivos", "*.*")],
+            title="Select a URL file",
+            filetypes=[("Text", "*.txt"), ("All files", "*.*")],
         )
         if p:
             self._app.txt_path.set(p)
@@ -304,11 +304,11 @@ class ConfigFrame(tk.Frame):
         mode = self._app.mode.get()
         if mode == "txt":
             if not self._app.txt_path.get().strip():
-                messagebox.showwarning("Atenção", "Selecione um arquivo .txt.")
+                messagebox.showwarning("Warning", "Select a .txt file.")
                 return
         else:
             if not self._app.url_var.get().strip():
-                messagebox.showwarning("Atenção", "Cole uma URL antes de continuar.")
+                messagebox.showwarning("Warning", "Paste a URL before continuing.")
                 return
         self._app.start_analysis()
 
@@ -320,14 +320,14 @@ class ProgressFrame(tk.Frame):
         self._app  = app
         self._total = 0
 
-        tk.Label(self, text="Processando…",
+        tk.Label(self, text="Processing…",
                     bg=BG, fg=FG, font=FONT_TITLE).pack(pady=(40, 24))
 
         # Progress bar
         pb_area = tk.Frame(self, bg=BG)
         pb_area.pack(fill="x", padx=60)
 
-        self._lbl = tk.Label(pb_area, text="0 / ? vídeos", bg=BG, fg=FG_DIM, font=FONT)
+        self._lbl = tk.Label(pb_area, text="0 / ? videos", bg=BG, fg=FG_DIM, font=FONT)
         self._lbl.pack(anchor="e")
 
         self._bar = ttk.Progressbar(
@@ -351,7 +351,7 @@ class ProgressFrame(tk.Frame):
 
         btn_row = tk.Frame(self, bg=BG)
         btn_row.pack(pady=(16, 24))
-        _btn(btn_row, "Cancelar", app.cancel, bg=RED).pack(side="left", padx=8)
+        _btn(btn_row, "Cancel", app.cancel, bg=RED).pack(side="left", padx=8)
         _btn(btn_row, "← Menu", self._back, bg=BG2).pack(side="left", padx=8)
 
     def _back(self):
@@ -362,7 +362,7 @@ class ProgressFrame(tk.Frame):
         self._total = 0
         self._bar["value"]   = 0
         self._bar["maximum"] = 1
-        self._lbl.config(text="0 / ? vídeos")
+        self._lbl.config(text="0 / ? videos")
         self._log.config(state="normal")
         self._log.delete("1.0", "end")
         self._log.config(state="disabled")
@@ -376,10 +376,10 @@ class ProgressFrame(tk.Frame):
         elif kind == "total":
             self._total          = data
             self._bar["maximum"] = data or 1
-            self._lbl.config(text=f"0 / {data} vídeos")
+            self._lbl.config(text=f"0 / {data} videos")
         elif kind == "progress":
             self._bar["value"] = data
-            self._lbl.config(text=f"{data} / {self._total} vídeos")
+            self._lbl.config(text=f"{data} / {self._total} videos")
 
 
 # ── Screen 4: Results ─────────────────────────────────────────────────
@@ -388,7 +388,7 @@ class ResultsFrame(tk.Frame):
         super().__init__(app, bg=BG)
         self._app = app
 
-        tk.Label(self, text="Análise concluída!", bg=BG, fg=FG, font=FONT_TITLE).pack(pady=(40, 6))
+        tk.Label(self, text="Analysis complete!", bg=BG, fg=FG, font=FONT_TITLE).pack(pady=(40, 6))
         self._count = tk.Label(self, bg=BG, fg=FG_DIM, font=FONT)
         self._count.pack(pady=(0, 20))
 
@@ -412,13 +412,13 @@ class ResultsFrame(tk.Frame):
         # Mouse-wheel scroll (Windows)
         self._canvas.bind("<MouseWheel>", lambda e: self._canvas.yview_scroll(int(-1 * e.delta / 120), "units"))
 
-        _btn(self, "Nova análise", lambda: app.show("home")).pack(pady=(16, 24))
+        _btn(self, "New analysis", lambda: app.show("home")).pack(pady=(16, 24))
 
     def populate(self, items: list[tuple[str, Path]]):
         for w in self._inner.winfo_children():
             w.destroy()
 
-        self._count.config(text=f"{len(items)} vídeo(s) processado(s)")
+        self._count.config(text=f"{len(items)} video(s) processed")
 
         for title, path in items:
             row = tk.Frame(self._inner, bg=BG2, pady=8)
@@ -428,7 +428,7 @@ class ResultsFrame(tk.Frame):
             tk.Label(row, text=short, bg=BG2, fg=FG,
                 font=FONT, anchor="w").pack(side="left", padx=12, fill="x", expand=True)
 
-            _btn(row, "Abrir pasta", lambda p=path: self._open(p),
+            _btn(row, "Open folder", lambda p=path: self._open(p),
                 font=("Segoe UI", 10), padx=10, pady=4).pack(side="right", padx=12)
 
     @staticmethod

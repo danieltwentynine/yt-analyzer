@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
 YouTube Playlist Analyzer
-Baixa áudios, transcreve com Whisper e gera resumo, análise e mapa mental via Claude API.
+Downloads audio, transcribes it with Whisper and generates a summary, analysis
+and mind map for each video via Ollama.
 """
 
 import os
@@ -19,18 +20,18 @@ load_dotenv()
 
 
 # ─────────────────────────────────────────────
-# CAMINHOS (cientes de empacotamento PyInstaller)
+# PATHS (aware of PyInstaller packaging)
 # ─────────────────────────────────────────────
 
 def app_base_dir() -> Path:
-    """Diretório base da aplicação (ao lado do .exe quando empacotado)."""
+    """Application base directory (next to the .exe when packaged)."""
     if getattr(sys, "frozen", False):
         return Path(sys.executable).parent
     return Path(__file__).resolve().parent
 
 
 def _bundle_dir() -> Path:
-    """Pasta onde o PyInstaller extrai dados/binários (ffmpeg, assets)."""
+    """Folder where PyInstaller extracts data/binaries (ffmpeg, assets)."""
     meipass = getattr(sys, "_MEIPASS", None)
     return Path(meipass) if meipass else app_base_dir()
 
@@ -45,7 +46,7 @@ WHISPER_LANGUAGE = os.getenv("WHISPER_LANGUAGE", "pt")
 # ─────────────────────────────────────────────
 
 def _find_ffmpeg() -> str | None:
-    """Localiza o ffmpeg: PATH do sistema ou binário empacotado junto ao app."""
+    """Locate ffmpeg: the system PATH or the binary bundled with the app."""
     found = shutil.which("ffmpeg")
     if found:
         return found
@@ -60,31 +61,31 @@ def _find_ffmpeg() -> str | None:
 
 
 def _ffmpeg_location() -> str | None:
-    """Pasta do ffmpeg para passar ao yt-dlp (opção ffmpeg_location)."""
+    """ffmpeg folder to pass to yt-dlp (the ffmpeg_location option)."""
     ffmpeg = _find_ffmpeg()
     return str(Path(ffmpeg).parent) if ffmpeg else None
 
 
 def ensure_ffmpeg() -> bool:
-    """Garante que o ffmpeg é acessível; adiciona o binário empacotado ao PATH."""
+    """Ensure ffmpeg is reachable; add the bundled binary to PATH."""
     ffmpeg = _find_ffmpeg()
     if ffmpeg:
-        # Prepend ao PATH para o Whisper (que chama ffmpeg via subprocess) o encontrar.
+        # Prepend to PATH so Whisper (which calls ffmpeg via subprocess) finds it.
         ffmpeg_dir = str(Path(ffmpeg).parent)
         if ffmpeg_dir not in os.environ.get("PATH", "").split(os.pathsep):
             os.environ["PATH"] = ffmpeg_dir + os.pathsep + os.environ.get("PATH", "")
         return True
-    print("⚠️  ffmpeg não encontrado. Instale o ffmpeg e adicione ao PATH.")
+    print("⚠️  ffmpeg not found. Install ffmpeg and add it to your PATH.")
     print("    Download: https://ffmpeg.org/download.html")
     return False
 
 
 # ─────────────────────────────────────────────
-# YT-DLP (API Python — funciona empacotado, sem depender do comando no PATH)
+# YT-DLP (Python API — works when packaged, no PATH command required)
 # ─────────────────────────────────────────────
 
 def _ydl(opts: dict) -> "yt_dlp.YoutubeDL":
-    """Cria um YoutubeDL com opções padrão + localização do ffmpeg."""
+    """Create a YoutubeDL with default options + the ffmpeg location."""
     base = {"quiet": True, "no_warnings": True, "noprogress": True}
     base.update(opts)
     loc = _ffmpeg_location()
@@ -94,7 +95,7 @@ def _ydl(opts: dict) -> "yt_dlp.YoutubeDL":
 
 
 def get_video_info(url: str, index: int = 1) -> dict:
-    """Extrai metadados de um único vídeo, sem baixar."""
+    """Extract metadata for a single video, without downloading."""
     with _ydl({"skip_download": True, "noplaylist": True}) as ydl:
         d = ydl.extract_info(url, download=False)
     return {
@@ -114,26 +115,26 @@ def call_llm(prompt: str) -> str:
 
 
 # ─────────────────────────────────────────────
-# UTILIDADES
+# UTILITIES
 # ─────────────────────────────────────────────
 
 def sanitize_filename(name: str) -> str:
-    """Remove caracteres inválidos para nomes de arquivo."""
+    """Remove characters that are invalid in file names."""
     return re.sub(r'[\\/*?:"<>|]', "", name).strip()[:80]
 
 
 def clean_json_response(text: str) -> str:
-    """Remove backticks e blocos de código que o modelo possa adicionar."""
+    """Strip backticks and code fences the model might add."""
     return re.sub(r"```(?:json)?", "", text).strip().rstrip("`")
 
 
 # ─────────────────────────────────────────────
-# ETAPA 1 — LISTAR PLAYLIST
+# STEP 1 — LIST PLAYLIST
 # ─────────────────────────────────────────────
 
 def get_playlist_videos(playlist_url: str) -> list[dict]:
-    """Obtém a lista de vídeos da playlist/canal via yt-dlp (API Python)."""
-    print("📋 Obtendo lista de vídeos da playlist...")
+    """Get the list of videos from the playlist/channel via yt-dlp (Python API)."""
+    print("📋 Fetching the list of videos from the playlist...")
     with _ydl({"extract_flat": True, "skip_download": True}) as ydl:
         data = ydl.extract_info(playlist_url, download=False)
 
@@ -146,22 +147,22 @@ def get_playlist_videos(playlist_url: str) -> list[dict]:
             "title": entry.get("title") or f"video_{i}",
             "url": f"https://www.youtube.com/watch?v={vid}" if vid else entry.get("url"),
         })
-    print(f"✅ {len(videos)} vídeos encontrados.\n")
+    print(f"✅ {len(videos)} videos found.\n")
     return videos
 
 
 # ─────────────────────────────────────────────
-# ETAPA 2 — DOWNLOAD DO ÁUDIO
+# STEP 2 — DOWNLOAD AUDIO
 # ─────────────────────────────────────────────
 
 def download_audio(video: dict, output_dir: Path) -> Path:
-    """Baixa apenas o áudio do vídeo em MP3 (via API do yt-dlp)."""
+    """Download only the video's audio as MP3 (via the yt-dlp API)."""
     audio_path = output_dir / "audio.mp3"
     if audio_path.exists():
-        print("  ⏩ Áudio já baixado, pulando...")
+        print("  ⏩ Audio already downloaded, skipping...")
         return audio_path
 
-    print("  ⬇️  Baixando áudio...")
+    print("  ⬇️  Downloading audio...")
     opts = {
         "format": "bestaudio/best",
         "outtmpl": str(output_dir / "audio.%(ext)s"),
@@ -175,25 +176,25 @@ def download_audio(video: dict, output_dir: Path) -> Path:
         with _ydl(opts) as ydl:
             ydl.download([video["url"]])
     except yt_dlp.utils.DownloadError as e:
-        raise RuntimeError(f"yt-dlp falhou: {e}") from e
+        raise RuntimeError(f"yt-dlp failed: {e}") from e
 
     if not audio_path.exists():
-        raise RuntimeError("yt-dlp não produziu o arquivo audio.mp3.")
+        raise RuntimeError("yt-dlp did not produce the audio.mp3 file.")
     return audio_path
 
 
 # ─────────────────────────────────────────────
-# ETAPA 3 — TRANSCRIÇÃO COM WHISPER
+# STEP 3 — TRANSCRIBE WITH WHISPER
 # ─────────────────────────────────────────────
 
 def transcribe_audio(audio_path: Path, output_dir: Path) -> str:
-    """Transcreve o áudio com Whisper (roda localmente)."""
+    """Transcribe the audio with Whisper (runs locally)."""
     transcript_path = output_dir / "transcript.txt"
     if transcript_path.exists():
-        print("  ⏩ Transcrição já existe, pulando...")
+        print("  ⏩ Transcript already exists, skipping...")
         return transcript_path.read_text(encoding="utf-8")
 
-    print(f"  🎙️  Transcrevendo com Whisper (modelo: {WHISPER_MODEL})...")
+    print(f"  🎙️  Transcribing with Whisper (model: {WHISPER_MODEL})...")
     model = whisper.load_model(WHISPER_MODEL)
     result = model.transcribe(str(audio_path), language=WHISPER_LANGUAGE)
     transcript = result["text"]
@@ -202,42 +203,42 @@ def transcribe_audio(audio_path: Path, output_dir: Path) -> str:
 
 
 # ─────────────────────────────────────────────
-# ETAPA 4 — RESUMO + ANÁLISE COM CLAUDE
+# STEP 4 — SUMMARY + ANALYSIS WITH OLLAMA
 # ─────────────────────────────────────────────
 
 def generate_analysis(title: str, transcript: str, output_dir: Path) -> str:
-    """Gera resumo e análise crítica com Claude."""
-    analysis_path = output_dir / "resumo_analise.md"
+    """Generate a summary and critical analysis with Ollama."""
+    analysis_path = output_dir / "summary_analysis.md"
     if analysis_path.exists():
-        print("  ⏩ Análise já existe, pulando...")
+        print("  ⏩ Analysis already exists, skipping...")
         return analysis_path.read_text(encoding="utf-8")
 
-    print("  🤖 Gerando resumo e análise com Ollama...")
+    print("  🤖 Generating summary and analysis with Ollama...")
 
-    prompt = f"""Você é um analista especializado em síntese de conteúdo educacional e informativo.
+    prompt = f"""You are an analyst specialized in synthesizing educational and informative content.
 
-Abaixo está a transcrição do vídeo: **{title}**
+Below is the transcript of the video: **{title}**
 
 ---
 {transcript[:14000]}
 ---
 
-Produza um documento Markdown bem estruturado com as seguintes seções:
+Produce a well-structured Markdown document with the following sections:
 
-## 📋 Resumo Executivo
-3 a 5 parágrafos concisos cobrindo os pontos centrais do vídeo.
+## 📋 Executive Summary
+3 to 5 concise paragraphs covering the core points of the video.
 
-## 🎯 Pontos-Chave
-Lista com os 7 a 10 insights ou ideias mais importantes apresentadas.
+## 🎯 Key Points
+A list of the 7 to 10 most important insights or ideas presented.
 
-## 📊 Análise Crítica
-Avaliação da qualidade das informações: pontos fortes, limitações, possíveis vieses, coerência dos argumentos.
+## 📊 Critical Analysis
+An assessment of the quality of the information: strengths, limitations, possible biases, and coherence of the arguments.
 
-## 💡 Conclusões e Aplicações Práticas
-Como o conteúdo pode ser aplicado na prática. O que o espectador deve levar para a vida real.
+## 💡 Conclusions and Practical Applications
+How the content can be applied in practice. What the viewer should take away for real life.
 
-## 🔗 Temas Relacionados para Aprofundamento
-5 tópicos ou referências para quem quiser se aprofundar.
+## 🔗 Related Topics for Further Study
+5 topics or references for anyone who wants to dive deeper.
 """
 
     analysis = call_llm(prompt)
@@ -246,44 +247,44 @@ Como o conteúdo pode ser aplicado na prática. O que o espectador deve levar pa
 
 
 # ─────────────────────────────────────────────
-# ETAPA 5 — MAPA MENTAL EM JSON
+# STEP 5 — MIND MAP AS JSON
 # ─────────────────────────────────────────────
 
 def generate_mindmap(title: str, transcript: str, output_dir: Path) -> dict:
-    """Gera mapa mental hierárquico em JSON (compatível com XMind e Miro)."""
-    mindmap_path = output_dir / "mapa_mental.json"
+    """Generate a hierarchical mind map as JSON (compatible with XMind and Miro)."""
+    mindmap_path = output_dir / "mind_map.json"
     if mindmap_path.exists():
-        print("  ⏩ Mapa mental já existe, pulando...")
+        print("  ⏩ Mind map already exists, skipping...")
         return json.loads(mindmap_path.read_text(encoding="utf-8"))
 
-    print("  🗺️  Gerando mapa mental com Ollama...")
+    print("  🗺️  Generating mind map with Ollama...")
 
-    prompt = f"""Você é um especialista em organização visual do conhecimento.
+    prompt = f"""You are an expert in visual knowledge organization.
 
-Analise a transcrição do vídeo "{title}" e crie um mapa mental hierárquico completo.
+Analyze the transcript of the video "{title}" and create a complete hierarchical mind map.
 
-Transcrição:
+Transcript:
 ---
 {transcript[:12000]}
 ---
 
-Responda APENAS com JSON válido. Sem texto antes ou depois. Sem backticks. Sem markdown.
+Respond ONLY with valid JSON. No text before or after. No backticks. No markdown.
 
-Use exatamente este formato:
+Use exactly this format:
 {{
     "title": "{title}",
     "children": [
     {{
-        "title": "Tema Principal 1",
+        "title": "Main Theme 1",
         "children": [
         {{
-            "title": "Subtópico 1.1",
+            "title": "Subtopic 1.1",
             "children": [
-                {{"title": "Detalhe 1.1.1", "children": []}}
+                {{"title": "Detail 1.1.1", "children": []}}
             ]
         }},
         {{
-            "title": "Subtópico 1.2",
+            "title": "Subtopic 1.2",
             "children": []
         }}
         ]
@@ -291,12 +292,12 @@ Use exatamente este formato:
     ]
 }}
 
-Regras obrigatórias:
-- Entre 4 e 6 temas principais
-- Máximo 3 níveis de profundidade
-- Títulos concisos (no máximo 7 palavras)
-- Cobrir os conceitos e argumentos mais importantes
-- Todos os campos "children" presentes (use [] se não tiver filhos)
+Mandatory rules:
+- Between 4 and 6 main themes
+- At most 3 levels of depth
+- Concise titles (7 words maximum)
+- Cover the most important concepts and arguments
+- All "children" fields present (use [] when there are no children)
 """
 
     raw = clean_json_response(call_llm(prompt))
@@ -304,7 +305,7 @@ Regras obrigatórias:
     try:
         mindmap = json.loads(raw)
     except json.JSONDecodeError as e:
-        print(f"  ⚠️  Erro ao parsear JSON do mapa mental: {e}")
+        print(f"  ⚠️  Error parsing the mind map JSON: {e}")
         mindmap = {"title": title, "children": [], "error": str(e), "raw": raw}
 
     mindmap_path.write_text(json.dumps(mindmap, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -312,11 +313,11 @@ Regras obrigatórias:
 
 
 # ─────────────────────────────────────────────
-# ORQUESTRADOR
+# ORCHESTRATOR
 # ─────────────────────────────────────────────
 
 def process_video(video: dict, index: int, total: int) -> Path:
-    """Processa um vídeo completo passo a passo. Retorna a pasta de saída."""
+    """Process one full video step by step. Returns the output folder."""
     print(f"\n{'═'*60}")
     print(f"🎬 [{index}/{total}] {video['title']}")
     print(f"{'═'*60}")
@@ -325,7 +326,7 @@ def process_video(video: dict, index: int, total: int) -> Path:
     video_dir = OUTPUT_DIR / folder_name
     video_dir.mkdir(parents=True, exist_ok=True)
 
-    # Salva metadados do vídeo
+    # Save the video metadata
     meta_path = video_dir / "meta.json"
     if not meta_path.exists():
         meta_path.write_text(json.dumps(video, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -336,10 +337,10 @@ def process_video(video: dict, index: int, total: int) -> Path:
         generate_analysis(video["title"], transcript, video_dir)
         generate_mindmap(video["title"], transcript, video_dir)
 
-        print(f"\n  ✅ Concluído com sucesso!")
+        print(f"\n  ✅ Completed successfully!")
 
     except Exception as e:
-        print(f"\n  ❌ Erro: {e}")
+        print(f"\n  ❌ Error: {e}")
         (video_dir / "error.txt").write_text(str(e), encoding="utf-8")
 
     return video_dir
@@ -347,27 +348,27 @@ def process_video(video: dict, index: int, total: int) -> Path:
 
 def main():
     print("╔══════════════════════════════════════════════╗")
-    print("║      YouTube Playlist Analyzer — Claude      ║")
+    print("║      YouTube Playlist Analyzer — Ollama      ║")
     print("╚══════════════════════════════════════════════╝\n")
 
     ensure_ffmpeg()
-    playlist_url = input("🔗 Cole a URL da playlist do YouTube: ").strip()
+    playlist_url = input("🔗 Paste the YouTube playlist URL: ").strip()
     OUTPUT_DIR.mkdir(exist_ok=True)
 
     try:
         videos = get_playlist_videos(playlist_url)
     except (yt_dlp.utils.DownloadError, json.JSONDecodeError) as e:
-        print(f"❌ Erro ao obter playlist: {e}")
+        print(f"❌ Error fetching the playlist: {e}")
         return
 
-    print(f"🚀 Iniciando processamento de {len(videos)} vídeo(s)...\n")
+    print(f"🚀 Starting processing of {len(videos)} video(s)...\n")
 
     for i, video in enumerate(videos, 1):
         process_video(video, i, len(videos))
 
     print(f"\n{'═'*60}")
-    print(f"🎉 Processamento concluído!")
-    print(f"📁 Resultados salvos em: {OUTPUT_DIR.resolve()}")
+    print(f"🎉 Processing complete!")
+    print(f"📁 Results saved to: {OUTPUT_DIR.resolve()}")
     print(f"{'═'*60}")
 
 
