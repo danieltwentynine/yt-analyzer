@@ -124,7 +124,7 @@ Outros modelos compatíveis: `llama3`, `gemma2`, `phi3`. Qualquer modelo de inst
 
 ### 3. Clone / copie os arquivos
 
-Coloque `pipeline.py`, `requirements.txt` e `.env` em uma pasta.
+Coloque `app.py`, `pipeline.py`, `requirements.txt` e `.env` em uma pasta.
 
 ---
 
@@ -224,13 +224,14 @@ O script **não reprocessa** arquivos que já existem. Se a execução for inter
 
 ## Troubleshooting
 
-**`yt-dlp: command not found`**
+**Erro ao baixar vídeo (yt-dlp)**
+O yt-dlp é usado como **biblioteca Python** (instalado via `requirements.txt`), não como comando externo. Se o download falhar, atualize-o:
 ```bash
-pip install yt-dlp
+pip install -U yt-dlp
 ```
 
 **`ffmpeg not found`**
-Instale o ffmpeg conforme as instruções acima.
+Instale o ffmpeg conforme as instruções acima. No executável (`.exe`) o ffmpeg já vem embutido.
 
 **`ollama: connection refused`**
 O servidor Ollama não está rodando. Execute `ollama serve` em outro terminal ou abra o app Ollama.
@@ -240,3 +241,31 @@ O servidor Ollama não está rodando. Execute `ollama serve` em outro terminal o
 ollama pull mistral
 ```
 Ou defina outro modelo em `.env` com `OLLAMA_MODEL=nome-do-modelo`.
+
+---
+
+## Alterações recentes
+
+### Suporte a executável Windows (`.exe`)
+
+- Novo build **PyInstaller** — arquivos [`yt-analyzer.spec`](yt-analyzer.spec), [`build.ps1`](build.ps1), [`build.bat`](build.bat) e [`requirements-build.txt`](requirements-build.txt) — que empacota o app numa pasta autônoma `dist\YouTube Analyzer\`. Veja a seção [Executável Windows (.exe)](#executável-windows-exe).
+- O `ffmpeg.exe` é **embutido automaticamente** no build (a partir do PATH da máquina de build) e localizado em tempo de execução — o usuário final não precisa instalar ffmpeg.
+- Hook de runtime (`pyi_rthooks/no_console.py`) que **suprime as janelas de console** que piscavam a cada chamada do ffmpeg (download/transcrição).
+
+### yt-dlp via API Python (em vez de comando externo)
+
+- `pipeline.py` e `app.py` agora usam o `yt_dlp` como **biblioteca** (`yt_dlp.YoutubeDL`), não mais `subprocess.run(["yt-dlp", ...])`. Isso faz o download funcionar dentro do `.exe`, onde não existe o comando `yt-dlp` no PATH.
+- Novo helper `pipeline.get_video_info()` centraliza a extração de metadados de um único vídeo (usado pelos modos **Vídeo único** e **Arquivo .txt**).
+
+### Caminhos cientes de empacotamento
+
+- A pasta `output/` é criada **ao lado do executável** (ou na raiz do projeto, ao rodar via Python), em vez de depender do diretório de trabalho atual.
+- Descoberta automática do ffmpeg: PATH do sistema → binário embutido no build.
+
+### Correção do ambiente virtual
+
+- O `venv/pyvenv.cfg` apontava para um Python-base inexistente (`C:\Python314`), o que quebrava o `pip`. Corrigido para o caminho real do interpretador.
+
+### `.gitignore`
+
+- Passa a ignorar os artefatos de build do PyInstaller (`/build`, `/dist`).
