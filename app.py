@@ -42,7 +42,20 @@ def _btn(parent, text, command, bg=BLUE, fg=FG, **kw):
 
 
 def _label(parent, text, **kw):
-    return tk.Label(parent, text=text, bg=BG, fg=FG, font=FONT, **kw)
+    kw.setdefault("bg", BG)
+    kw.setdefault("fg", FG)
+    kw.setdefault("font", FONT)
+    return tk.Label(parent, text=text, **kw)
+
+
+def _check(parent, text, var, command=None, **kw):
+    return tk.Checkbutton(
+        parent, text=text, variable=var, command=command,
+        bg=BG, fg=FG, font=FONT, selectcolor=BG3,
+        activebackground=BG, activeforeground=FG,
+        relief="flat", highlightthickness=0, anchor="w", cursor="hand2",
+        **kw,
+    )
 
 
 # ── Redirect pipeline's print() output to the GUI queue ───────────────
@@ -90,6 +103,13 @@ class App(tk.Tk):
         self.model_var = tk.StringVar(value="mistral")
         self.txt_path  = tk.StringVar()
 
+        # Output options (chosen on the Config screen)
+        self.dl_video     = tk.BooleanVar(value=False)
+        self.dl_audio     = tk.BooleanVar(value=True)
+        self.opt_analysis = tk.BooleanVar(value=True)
+        self.opt_mindmap  = tk.BooleanVar(value=True)
+        self.opt_meta     = tk.BooleanVar(value=True)
+
         self._q:      queue.Queue    = queue.Queue()
         self._cancel: threading.Event = threading.Event()
 
@@ -116,10 +136,17 @@ class App(tk.Tk):
         self._cancel.clear()
         self._frames["progress"].reset()
         self.show("progress")
+        options = {
+            "download_video": self.dl_video.get(),
+            "download_audio": self.dl_audio.get(),
+            "analysis":       self.opt_analysis.get(),
+            "mindmap":        self.opt_mindmap.get(),
+            "metadata":       self.opt_meta.get(),
+        }
         threading.Thread(
             target=self._run,
             args=(self.mode.get(), self.url_var.get().strip(),
-                    self.model_var.get(), self.txt_path.get().strip()),
+                    self.model_var.get(), self.txt_path.get().strip(), options),
             daemon=True,
         ).start()
 
@@ -127,7 +154,7 @@ class App(tk.Tk):
         self._cancel.set()
         self._q.put(("log", "⚠️  Cancellation requested — waiting for the current video to finish."))
 
-    def _run(self, mode: str, url: str, model: str, txt: str):
+    def _run(self, mode: str, url: str, model: str, txt: str, options: dict):
         old = sys.stdout
         sys.stdout = _QueueStream(self._q)
         try:
@@ -156,7 +183,8 @@ class App(tk.Tk):
                     break
 
                 # pipeline's own print() output reaches the log via _QueueStream
-                processed.append((video["title"], pipeline.process_video(video, i, total)))
+                processed.append((video["title"],
+                                    pipeline.process_video(video, i, total, options)))
                 self._q.put(("progress", i))
 
             self._q.put(("done", processed))
@@ -223,7 +251,7 @@ class ConfigFrame(tk.Frame):
         self._app = app
 
         self._title = tk.Label(self, bg=BG, fg=FG, font=FONT_TITLE)
-        self._title.pack(pady=(60, 40))
+        self._title.pack(pady=(36, 24))
 
         # ── Input area (swapped per mode) ────────────────────────────
         self._input_area = tk.Frame(self, bg=BG)
@@ -252,10 +280,30 @@ class ConfigFrame(tk.Frame):
         # Default: show URL input
         self._url_frame.pack(fill="x")
 
+        # ── Output options (Download / Generate) ─────────────────────
+        opts_row = tk.Frame(self, bg=BG)
+        opts_row.pack(fill="x", padx=80, pady=(22, 0))
+
+        dl_group = tk.Frame(opts_row, bg=BG)
+        dl_group.pack(side="left", fill="both", expand=True)
+        _label(dl_group, "Download:", fg=FG_DIM).pack(anchor="w")
+        _check(dl_group, "Video (mp4)", app.dl_video).pack(anchor="w")
+        _check(dl_group, "Audio (mp3)", app.dl_audio).pack(anchor="w")
+
+        gen_group = tk.Frame(opts_row, bg=BG)
+        gen_group.pack(side="left", fill="both", expand=True)
+        _label(gen_group, "Generate:", fg=FG_DIM).pack(anchor="w")
+        _check(gen_group, "Analysis",  app.opt_analysis,
+                command=self._sync_model_state).pack(anchor="w")
+        _check(gen_group, "Mind map",  app.opt_mindmap,
+                command=self._sync_model_state).pack(anchor="w")
+        _check(gen_group, "Metadata",  app.opt_meta).pack(anchor="w")
+
         # ── Model selector ───────────────────────────────────────────
         model_area = tk.Frame(self, bg=BG)
-        model_area.pack(fill="x", padx=80, pady=(24, 0))
-        _label(model_area, "Ollama model:").pack(anchor="w")
+        model_area.pack(fill="x", padx=80, pady=(18, 0))
+        self._model_lbl = _label(model_area, "Ollama model:")
+        self._model_lbl.pack(anchor="w")
 
         style = ttk.Style()
         style.theme_use("clam")
@@ -278,7 +326,7 @@ class ConfigFrame(tk.Frame):
 
         # ── Buttons ───────────────────────────────────────────────────
         btn_row = tk.Frame(self, bg=BG)
-        btn_row.pack(pady=(40, 0))
+        btn_row.pack(pady=(28, 0))
         _btn(btn_row, "← Back", lambda: app.show("home"),
                 bg=BG2).pack(side="left", padx=8)
         _btn(btn_row, "Start analysis", self._start).pack(side="left", padx=8)
@@ -291,6 +339,13 @@ class ConfigFrame(tk.Frame):
             self._file_frame.pack(fill="x")
         else:
             self._url_frame.pack(fill="x")
+        self._sync_model_state()
+
+    def _sync_model_state(self):
+        """The Ollama model is only used by Analysis / Mind map — dim it otherwise."""
+        need_model = self._app.opt_analysis.get() or self._app.opt_mindmap.get()
+        self._cb.config(state="readonly" if need_model else "disabled")
+        self._model_lbl.config(fg=FG if need_model else FG_DIM)
 
     def _pick(self):
         p = filedialog.askopenfilename(
@@ -310,6 +365,12 @@ class ConfigFrame(tk.Frame):
             if not self._app.url_var.get().strip():
                 messagebox.showwarning("Warning", "Paste a URL before continuing.")
                 return
+        if not any([self._app.dl_video.get(), self._app.dl_audio.get(),
+                    self._app.opt_analysis.get(), self._app.opt_mindmap.get(),
+                    self._app.opt_meta.get()]):
+            messagebox.showwarning(
+                "Warning", "Select at least one output (a download or something to generate).")
+            return
         self._app.start_analysis()
 
 

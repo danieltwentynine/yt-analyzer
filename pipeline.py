@@ -227,6 +227,44 @@ def download_audio(video: dict, output_dir: Path) -> Path:
 
 
 # ─────────────────────────────────────────────
+# STEP 2b — DOWNLOAD VIDEO
+# ─────────────────────────────────────────────
+
+def _existing_video(output_dir: Path) -> Path | None:
+    """Return a previously downloaded video file, ignoring temp/partial files."""
+    for f in sorted(output_dir.glob("video.*")):
+        if f.suffix.lower() not in (".part", ".ytdl", ".temp"):
+            return f
+    return None
+
+
+def download_video(video: dict, output_dir: Path) -> Path:
+    """Download the full video (best quality) merged into an MP4."""
+    existing = _existing_video(output_dir)
+    if existing:
+        print("  ⏩ Video already downloaded, skipping...")
+        return existing
+
+    print("  ⬇️  Downloading video...")
+    opts = {
+        "format": "bestvideo+bestaudio/best",
+        "outtmpl": str(output_dir / "video.%(ext)s"),
+        "noplaylist": True,
+        "merge_output_format": "mp4",
+    }
+    try:
+        with _ydl(opts) as ydl:
+            ydl.download([video["url"]])
+    except yt_dlp.utils.DownloadError as e:
+        raise RuntimeError(f"yt-dlp failed: {e}") from e
+
+    video_path = _existing_video(output_dir)
+    if not video_path:
+        raise RuntimeError("yt-dlp did not produce the video file.")
+    return video_path
+
+
+# ─────────────────────────────────────────────
 # STEP 3 — TRANSCRIBE WITH WHISPER
 # ─────────────────────────────────────────────
 
@@ -359,8 +397,28 @@ Mandatory rules:
 # ORCHESTRATOR
 # ─────────────────────────────────────────────
 
-def process_video(video: dict, index: int, total: int) -> Path:
-    """Process one full video step by step. Returns the output folder."""
+# What each run produces. The GUI overrides these per run; the CLI keeps the
+# original behaviour (audio + full analysis, no video file).
+DEFAULT_OPTIONS = {
+    "download_video": False,  # save the full video as video.mp4
+    "download_audio": True,   # save the audio as audio.mp3
+    "analysis":       True,   # generate summary_analysis.md (needs a transcript)
+    "mindmap":        True,   # generate mind_map.json       (needs a transcript)
+    "metadata":       True,   # save meta.json
+}
+
+
+def process_video(video: dict, index: int, total: int,
+                  options: dict | None = None) -> Path:
+    """Process one video step by step, honouring `options`. Returns the folder.
+
+    Analysis and the mind map require a transcript, which requires the audio.
+    When audio is needed only as an intermediate for the transcript (i.e. the
+    user did not ask to keep it), it is removed at the end so the output folder
+    matches exactly what was requested.
+    """
+    opts = {**DEFAULT_OPTIONS, **(options or {})}
+
     print(f"\n{'═'*60}")
     print(f"🎬 [{index}/{total}] {video['title']}")
     print(f"{'═'*60}")
@@ -370,15 +428,32 @@ def process_video(video: dict, index: int, total: int) -> Path:
     video_dir.mkdir(parents=True, exist_ok=True)
 
     # Save the video metadata
-    meta_path = video_dir / "meta.json"
-    if not meta_path.exists():
-        meta_path.write_text(json.dumps(video, ensure_ascii=False, indent=2), encoding="utf-8")
+    if opts["metadata"]:
+        meta_path = video_dir / "meta.json"
+        if not meta_path.exists():
+            meta_path.write_text(json.dumps(video, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    need_transcript = opts["analysis"] or opts["mindmap"]
+    need_audio      = opts["download_audio"] or need_transcript
 
     try:
-        audio_path = download_audio(video, video_dir)
-        transcript = transcribe_audio(audio_path, video_dir)
-        generate_analysis(video["title"], transcript, video_dir)
-        generate_mindmap(video["title"], transcript, video_dir)
+        if opts["download_video"]:
+            download_video(video, video_dir)
+
+        if need_audio:
+            audio_pre_existing = (video_dir / "audio.mp3").exists()
+            audio_path = download_audio(video, video_dir)
+
+            if need_transcript:
+                transcript = transcribe_audio(audio_path, video_dir)
+                if opts["analysis"]:
+                    generate_analysis(video["title"], transcript, video_dir)
+                if opts["mindmap"]:
+                    generate_mindmap(video["title"], transcript, video_dir)
+
+            # Drop the audio if it was only an intermediate we created this run.
+            if not opts["download_audio"] and not audio_pre_existing and audio_path.exists():
+                audio_path.unlink()
 
         print(f"\n  ✅ Completed successfully!")
 

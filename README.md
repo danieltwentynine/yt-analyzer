@@ -16,10 +16,17 @@ The interface walks you through four screens:
 
 | Screen | Description |
 | --- | --- |
-| **Home** | Choose the mode: Single video, Playlist, Entire channel, or .txt file |
-| **Config** | Paste the URL (or select the file), choose the Ollama model, and start |
+| **Home** | Choose how to get the links: Single video, Playlist, Entire channel, or .txt file |
+| **Config** | Paste the URL (or select the file), choose what to **download** (video / audio) and what to **generate** (analysis / mind map / metadata), pick the Ollama model, and start |
 | **Progress** | Overall progress bar + real-time log of each step |
 | **Results** | List of processed videos with an "Open folder" button for each |
+
+On the **Config** screen you decide exactly what each run produces:
+
+- **Download** — the video (`video.mp4`), the audio (`audio.mp3`), or both.
+- **Generate** — the critical **analysis**, the **mind map**, and/or the **metadata**.
+
+Analysis and the mind map need a transcript, so the audio is fetched and transcribed automatically when either is selected — even if you did not ask to keep the audio file (the intermediate `audio.mp3` is removed afterwards). Picking only downloads skips Whisper and Ollama entirely, which is much faster. The Ollama model selector is only enabled when Analysis or Mind map is checked.
 
 > `app.py` is the main entry point and calls the functions in `pipeline.py` internally.
 
@@ -69,19 +76,24 @@ The `.exe` embeds everything **except** Ollama, which is a separate server:
 
 ## Output structure
 
-After a run, the `output/` folder contains:
+After a run, each video's folder contains the files matching the options you
+selected. With everything enabled:
 
 ```text
 output/
 ├── 01_Video-Title/
-│   ├── meta.json             ← video metadata (title, URL, id)
-│   ├── audio.mp3             ← downloaded audio
-│   ├── transcript.txt        ← full transcript
-│   ├── summary_analysis.md   ← summary + critical analysis (Markdown)
-│   └── mind_map.json         ← hierarchical mind map (JSON)
+│   ├── meta.json             ← video metadata (title, URL, id)     — "Metadata"
+│   ├── video.mp4             ← downloaded video                    — "Video"
+│   ├── audio.mp3             ← downloaded audio                    — "Audio"
+│   ├── transcript.txt        ← full transcript (whenever analysis or mind map runs)
+│   ├── summary_analysis.md   ← summary + critical analysis (MD)    — "Analysis"
+│   └── mind_map.json         ← hierarchical mind map (JSON)        — "Mind map"
 ├── 02_Another-Video/
 │   └── ...
 ```
+
+Files you did not select are simply not produced. In the CLI (`pipeline.py`) the
+defaults are audio + analysis + mind map + metadata (no video file).
 
 ---
 
