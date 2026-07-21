@@ -1,4 +1,4 @@
-#Requires -Version 5
+﻿#Requires -Version 5
 <#
     build.ps1 — Build the Windows .exe for YouTube Analyzer with PyInstaller.
 
