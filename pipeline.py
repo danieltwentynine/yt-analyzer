@@ -5,29 +5,104 @@ Baixa áudios, transcreve com Whisper e gera resumo, análise e mapa mental via 
 """
 
 import os
+import sys
 import json
 import shutil
 import re
-import subprocess
 from pathlib import Path
 from dotenv import load_dotenv
 import ollama
 import whisper
+import yt_dlp
 
 load_dotenv()
 
-OUTPUT_DIR = Path("output")
+
+# ─────────────────────────────────────────────
+# CAMINHOS (cientes de empacotamento PyInstaller)
+# ─────────────────────────────────────────────
+
+def app_base_dir() -> Path:
+    """Diretório base da aplicação (ao lado do .exe quando empacotado)."""
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).parent
+    return Path(__file__).resolve().parent
+
+
+def _bundle_dir() -> Path:
+    """Pasta onde o PyInstaller extrai dados/binários (ffmpeg, assets)."""
+    meipass = getattr(sys, "_MEIPASS", None)
+    return Path(meipass) if meipass else app_base_dir()
+
+
+OUTPUT_DIR = app_base_dir() / "output"
 WHISPER_MODEL = os.getenv("WHISPER_MODEL", "medium")  # tiny | base | small | medium | large
 WHISPER_LANGUAGE = os.getenv("WHISPER_LANGUAGE", "pt")
 
 
+# ─────────────────────────────────────────────
+# FFMPEG
+# ─────────────────────────────────────────────
+
+def _find_ffmpeg() -> str | None:
+    """Localiza o ffmpeg: PATH do sistema ou binário empacotado junto ao app."""
+    found = shutil.which("ffmpeg")
+    if found:
+        return found
+    for cand in (
+        _bundle_dir() / "ffmpeg.exe",
+        _bundle_dir() / "ffmpeg" / "bin" / "ffmpeg.exe",
+        app_base_dir() / "ffmpeg.exe",
+    ):
+        if cand.exists():
+            return str(cand)
+    return None
+
+
+def _ffmpeg_location() -> str | None:
+    """Pasta do ffmpeg para passar ao yt-dlp (opção ffmpeg_location)."""
+    ffmpeg = _find_ffmpeg()
+    return str(Path(ffmpeg).parent) if ffmpeg else None
+
+
 def ensure_ffmpeg() -> bool:
-    """Returns True if ffmpeg is on PATH, warns otherwise."""
-    if shutil.which("ffmpeg"):
+    """Garante que o ffmpeg é acessível; adiciona o binário empacotado ao PATH."""
+    ffmpeg = _find_ffmpeg()
+    if ffmpeg:
+        # Prepend ao PATH para o Whisper (que chama ffmpeg via subprocess) o encontrar.
+        ffmpeg_dir = str(Path(ffmpeg).parent)
+        if ffmpeg_dir not in os.environ.get("PATH", "").split(os.pathsep):
+            os.environ["PATH"] = ffmpeg_dir + os.pathsep + os.environ.get("PATH", "")
         return True
     print("⚠️  ffmpeg não encontrado. Instale o ffmpeg e adicione ao PATH.")
     print("    Download: https://ffmpeg.org/download.html")
     return False
+
+
+# ─────────────────────────────────────────────
+# YT-DLP (API Python — funciona empacotado, sem depender do comando no PATH)
+# ─────────────────────────────────────────────
+
+def _ydl(opts: dict) -> "yt_dlp.YoutubeDL":
+    """Cria um YoutubeDL com opções padrão + localização do ffmpeg."""
+    base = {"quiet": True, "no_warnings": True, "noprogress": True}
+    base.update(opts)
+    loc = _ffmpeg_location()
+    if loc:
+        base.setdefault("ffmpeg_location", loc)
+    return yt_dlp.YoutubeDL(base)
+
+
+def get_video_info(url: str, index: int = 1) -> dict:
+    """Extrai metadados de um único vídeo, sem baixar."""
+    with _ydl({"skip_download": True, "noplaylist": True}) as ydl:
+        d = ydl.extract_info(url, download=False)
+    return {
+        "index": index,
+        "id": d.get("id"),
+        "title": d.get("title") or f"video_{index}",
+        "url": url,
+    }
 
 
 def call_llm(prompt: str) -> str:
@@ -57,20 +132,19 @@ def clean_json_response(text: str) -> str:
 # ─────────────────────────────────────────────
 
 def get_playlist_videos(playlist_url: str) -> list[dict]:
-    """Obtém a lista de vídeos da playlist via yt-dlp."""
+    """Obtém a lista de vídeos da playlist/canal via yt-dlp (API Python)."""
     print("📋 Obtendo lista de vídeos da playlist...")
-    result = subprocess.run(
-        ["yt-dlp", "--flat-playlist", "-J", playlist_url],
-        capture_output=True, text=True, check=True
-    )
-    data = json.loads(result.stdout)
+    with _ydl({"extract_flat": True, "skip_download": True}) as ydl:
+        data = ydl.extract_info(playlist_url, download=False)
+
     videos = []
-    for i, entry in enumerate(data.get("entries", []), 1):
+    for i, entry in enumerate(data.get("entries") or [], 1):
+        vid = entry.get("id")
         videos.append({
             "index": i,
-            "id": entry.get("id"),
-            "title": entry.get("title", f"video_{i}"),
-            "url": f"https://www.youtube.com/watch?v={entry.get('id')}"
+            "id": vid,
+            "title": entry.get("title") or f"video_{i}",
+            "url": f"https://www.youtube.com/watch?v={vid}" if vid else entry.get("url"),
         })
     print(f"✅ {len(videos)} vídeos encontrados.\n")
     return videos
@@ -81,27 +155,30 @@ def get_playlist_videos(playlist_url: str) -> list[dict]:
 # ─────────────────────────────────────────────
 
 def download_audio(video: dict, output_dir: Path) -> Path:
-    """Baixa apenas o áudio do vídeo em MP3."""
+    """Baixa apenas o áudio do vídeo em MP3 (via API do yt-dlp)."""
     audio_path = output_dir / "audio.mp3"
     if audio_path.exists():
         print("  ⏩ Áudio já baixado, pulando...")
         return audio_path
 
     print("  ⬇️  Baixando áudio...")
-    audio_template = output_dir / "audio"  # sem extensão — yt-dlp adiciona .mp3
-    result = subprocess.run(
-        [
-            "yt-dlp",
-            "-x", "--audio-format", "mp3",
-            "-o", str(audio_template),
-            "--no-playlist",
-            video["url"],
-        ],
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0:
-        raise RuntimeError(f"yt-dlp falhou:\n{result.stderr.strip()}")
+    opts = {
+        "format": "bestaudio/best",
+        "outtmpl": str(output_dir / "audio.%(ext)s"),
+        "noplaylist": True,
+        "postprocessors": [{
+            "key": "FFmpegExtractAudio",
+            "preferredcodec": "mp3",
+        }],
+    }
+    try:
+        with _ydl(opts) as ydl:
+            ydl.download([video["url"]])
+    except yt_dlp.utils.DownloadError as e:
+        raise RuntimeError(f"yt-dlp falhou: {e}") from e
+
+    if not audio_path.exists():
+        raise RuntimeError("yt-dlp não produziu o arquivo audio.mp3.")
     return audio_path
 
 
@@ -279,7 +356,7 @@ def main():
 
     try:
         videos = get_playlist_videos(playlist_url)
-    except (subprocess.CalledProcessError, json.JSONDecodeError) as e:
+    except (yt_dlp.utils.DownloadError, json.JSONDecodeError) as e:
         print(f"❌ Erro ao obter playlist: {e}")
         return
 

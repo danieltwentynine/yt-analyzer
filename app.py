@@ -3,7 +3,6 @@
 
 import os
 import sys
-import json
 import queue
 import subprocess
 import threading
@@ -61,13 +60,7 @@ class _QueueStream:
 
 # ── Video-list helpers (modes not covered by pipeline.get_playlist_videos) ─
 def _single_video(url: str) -> dict:
-    r = subprocess.run(
-        ["yt-dlp", "--no-playlist", "-j", url],
-        capture_output=True, text=True, check=True,
-    )
-    d = json.loads(r.stdout)
-    return {"index": 1, "id": d.get("id"),
-            "title": d.get("title", "video_1"), "url": url}
+    return pipeline.get_video_info(url, index=1)
 
 
 def _videos_from_txt(path: str) -> list[dict]:
@@ -76,7 +69,7 @@ def _videos_from_txt(path: str) -> list[dict]:
     result = []
     for i, url in enumerate(urls, 1):
         try:
-            result.append(_single_video(url) | {"index": i})
+            result.append(pipeline.get_video_info(url, index=i))
         except Exception:
             result.append({"index": i, "id": None,
                             "title": f"video_{i}", "url": url})

@@ -1,0 +1,3 @@
+# Build-time only — used to produce the Windows .exe.
+# See build.ps1 and yt-analyzer.spec. (Runtime deps live in requirements.txt.)
+pyinstaller>=6.16

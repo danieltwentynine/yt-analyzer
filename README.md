@@ -35,6 +35,38 @@ Cole a URL quando solicitado. Útil para automação ou ambientes sem interface 
 
 ---
 
+## Executável Windows (.exe)
+
+Gere um aplicativo Windows autônomo (não exige Python instalado no computador do usuário final):
+
+```powershell
+# 1. Crie o ambiente virtual e instale as dependências de runtime
+py -3.14 -m venv venv
+venv\Scripts\pip install -r requirements.txt
+
+# 2. Gere o executável
+.\build.ps1        # ou dê duplo-clique em build.bat
+```
+
+O resultado fica em `dist\YouTube Analyzer\`. **Distribua a pasta inteira** — o `.exe` depende dos arquivos ao lado dele, não apenas do próprio `.exe`.
+
+O build é controlado por [`yt-analyzer.spec`](yt-analyzer.spec) (PyInstaller), que:
+
+- Empacota PyTorch + Whisper, os extratores do yt-dlp, numba/llvmlite e o `ffmpeg.exe` encontrado no PATH — o app fica autossuficiente.
+- Produz uma pasta de ~2–3 GB (o PyTorch é grande; isso é esperado).
+
+### O que o usuário final ainda precisa
+
+O `.exe` embute tudo, **exceto** o Ollama, que é um servidor separado:
+
+- Instale o [Ollama](https://ollama.com/download) e deixe-o rodando.
+- Baixe um modelo: `ollama pull mistral`.
+- Na primeira análise, o Whisper baixa automaticamente os pesos do modelo (~1.5 GB para `medium`) em `~/.cache/whisper` — requer internet nessa primeira vez.
+
+> Os resultados são salvos na pasta `output/` criada **ao lado do `.exe`**.
+
+---
+
 ## Estrutura de saída
 
 Após a execução, a pasta `output/` terá:

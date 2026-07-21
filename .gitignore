@@ -7,3 +7,7 @@ venv
 .vscode
 __pycache__
 pyvenv.cfg
+
+# PyInstaller build artifacts
+/build
+/dist
